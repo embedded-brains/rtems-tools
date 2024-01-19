@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  # Triggers the workflow on push or pull request for the given branch
+  push:
+    branches: [ ci ]
+  pull_request:
+    branches: [ ci ]
+
+  # Trigger manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  devel:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macOS-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies for Ubuntu
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install llvm-dev
+      - name: Install dependencies for macOS
+        if: ${{ matrix.os == 'macOS-latest' }}
+        run: |
+          brew install llvm
+      - name: Build on ${{ matrix.os }}
+        run: |
+          ./waf configure
+          ./waf
+          sudo ./waf install
