@@ -32,7 +32,7 @@ jobs:
           brew install llvm
       - name: Build on ${{ matrix.os }}
         run: |
-          find /System/Volumes/Data/usr/local/Cellar -name Symbolize.h
+          export PATH="/System/Volumes/Data/usr/local/Cellar/llvm/17.0.6/bin:$PATH"
           ./waf configure
           ./waf
           sudo ./waf install
