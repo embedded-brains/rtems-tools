@@ -32,6 +32,8 @@ jobs:
           brew install llvm
       - name: Build on ${{ matrix.os }}
         run: |
+          find / -name llvm-config
+          find / -name Symbolize.h
           ./waf configure
           ./waf
           sudo ./waf install
