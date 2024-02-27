@@ -53,7 +53,7 @@
 /**
  * Header text.
  */
-static const char* c_header[] =
+static const char* const c_header[] =
 {
   "/*",
   " * RTEMS Global Symbol Table",
@@ -90,7 +90,7 @@ static const char* c_header[] =
   0
 };
 
-static const char* c_sym_table_end[] =
+static const char* const c_sym_table_end[] =
 {
   "asm(\"  .byte    0\");",
   "asm(\"  .ascii   \\\"\\xde\\xad\\xbe\\xef\\\"\");",
@@ -98,13 +98,13 @@ static const char* c_sym_table_end[] =
   0
 };
 
-static const char* c_tls_call_table_start[] =
+static const char* const c_tls_call_table_start[] =
 {
   "rtems_rtl_tls_offset rtems_rtl_tls_offsets[] = {",
   0
 };
 
-static const char* c_tls_call_table_end[] =
+static const char* const c_tls_call_table_end[] =
 {
   "};",
   "#define RTEMS_RTL_TLS_OFFSETS_NUM " \
@@ -113,7 +113,7 @@ static const char* c_tls_call_table_end[] =
   0
 };
 
-static const char* c_trailer[] =
+static const char* const c_trailer[] =
 {
   "/*",
   " * Symbol table size.",
@@ -127,7 +127,7 @@ static const char* c_trailer[] =
   0
 };
 
-static const char* c_rtl_call_body_embeded[] =
+static const char* const c_rtl_call_body_embeded[] =
 {
   "{",
   "  rtems_rtl_base_sym_global_add (&rtems__rtl_base_globals[0],",
@@ -138,7 +138,7 @@ static const char* c_rtl_call_body_embeded[] =
   0
 };
 
-static const char* c_rtl_call_body[] =
+static const char* const c_rtl_call_body[] =
 {
   "{",
   "  rtems_rtl_base_sym_global_add (&rtems__rtl_base_globals[0],",
@@ -153,7 +153,7 @@ static const char* c_rtl_call_body[] =
  * Paint the data to the temporary file.
  */
 static void
-temporary_file_paint (rld::process::tempfile& t, const char* lines[])
+temporary_file_paint (rld::process::tempfile& t, const char* const lines[])
 {
   for (int l = 0; lines[l]; ++l)
     t.write_line (lines[l]);
@@ -322,9 +322,9 @@ output_sym::operator ()(const rld::symbols::symtab::value_type& value)
       if (sym.type () == STT_TLS) {
         c.write_line ("#define RTEMS_TLS_INDEX_" + sym.name () + " " + std::to_string(index));
         c.write_line ("static size_t rtems_rtl_tls_" + sym.name () + "(void) {");
-        c.write_line ("  extern __thread void* "  + sym.name () +  ";");
-        c.write_line ("  const void* tls_base = rtems_rtl_tls_get_base ();");
-        c.write_line ("  const void* tls_addr = (void*) &"  + sym.name () +  ";");
+        c.write_line ("  extern __thread char "  + sym.name () +  "[];");
+        c.write_line ("  size_t tls_base = (size_t) rtems_rtl_tls_get_base ();");
+        c.write_line ("  size_t tls_addr = (size_t) "  + sym.name () +  ";");
         c.write_line ("  return tls_addr - tls_base;");
         c.write_line ("}");
         c.write_line ("");
@@ -345,6 +345,10 @@ generate_c (rld::process::tempfile& c,
             rld::symbols::symtab&   symbols,
             bool                    embed)
 {
+  if (rld::verbose ())
+    std::cout << "symbol C file: " << c.name () << std::endl;
+
+  c.open (true);
   temporary_file_paint (c, c_header);
 
   /*
@@ -390,11 +394,6 @@ generate_symmap (rld::process::tempfile& c,
                  rld::symbols::symtab&   symbols,
                  bool                    embed)
 {
-  c.open (true);
-
-  if (rld::verbose ())
-    std::cout << "symbol C file: " << c.name () << std::endl;
-
   generate_c (c, symbols, embed);
 
   if (rld::verbose ())
@@ -622,8 +621,8 @@ main (int argc, char* argv[])
       throw rld::error ("no kernel file", "options");
     if (argc != 1)
       throw rld::error ("only one kernel file", "options");
-    if (output.empty () && map.empty ())
-      throw rld::error ("no output or map", "options");
+    if (output.empty () && symc.empty() && map.empty ())
+      throw rld::error ("no output, symbol C file, or map", "options");
 
     kernel_name = *argv;
 
@@ -683,7 +682,7 @@ main (int argc, char* argv[])
       /*
        * Create an output file if asked too.
        */
-      if (!output.empty ())
+      if (!output.empty () || !symc.empty())
       {
         rld::process::tempfile c (".c");
 
@@ -694,9 +693,12 @@ main (int argc, char* argv[])
         }
 
         /*
-         * Generate and compile the symbol map.
+         * Generate and if requested compile the symbol map.
          */
-        generate_symmap (c, output, filter_symbols, embed);
+        if (output.empty())
+          generate_c (c, filter_symbols, embed);
+        else
+          generate_symmap (c, output, filter_symbols, embed);
       }
 
       kernel.close ();
